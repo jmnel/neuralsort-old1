@@ -27,6 +27,12 @@ class StitchedMNIST(torch.utils.data.Dataset):
         img = self.data[idx][0].reshape(28, 112)
         label = self.data[idx][1]
 
+#        onehot = torch.zeros(36)
+
+#        s = str(label)
+#        for k in range(4):
+#            onehot[k + int(s[k])] = 1.0
+
         if self.transform:
             img = self.transform(img)
 
