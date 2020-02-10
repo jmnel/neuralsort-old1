@@ -17,10 +17,9 @@ class CnnModel(nn.Module):
         self.conv2 = nn.Conv2d(32, 64, 3, 1)
         self.dropout1 = nn.Dropout2d(0.25)
         self.dropout2 = nn.Dropout2d(0.5)
-        self.fc1 = nn.Linear(41472, 4096)
-#        self.fc2 = nn.Linear(10368, 5832)
-        self.fc2 = nn.Linear(4096, 9999)
-#        self.fc2 = nn.Linear( , 5832
+        self.fc1 = nn.Linear(41472, 2592)
+        self.fc2 = nn.Linear(2592, 648)
+        self.fc3 = nn.Linear(648, 40)
 
     def forward(self, x):
         x = self.conv1(x)
@@ -33,8 +32,21 @@ class CnnModel(nn.Module):
         x = F.relu(x)
         x = self.dropout2(x)
         x = self.fc2(x)
-        output = F.log_softmax(x, dim=1)
-        return output
+        x = F.relu(x)
+        x = self.dropout2(x)
+        x = self.fc3(x)
+
+        x = x.reshape((x.shape[0], 10, 4))
+        x = F.log_softmax(x, dim=1)
+
+        return x
+
+#        output = torch.cat([
+#            F.log_softmax(x[:10], dim=1),
+#            F.log_softmax(x[10:20], dim=1),
+#            F.log_softmax(x[20:30], dim=1),
+#            F.log_softmax(x[30:40], dim=1)])
+#        return output
 
 
 def train(args, model, device, train_loader, optimizer, epoch):
@@ -44,11 +56,12 @@ def train(args, model, device, train_loader, optimizer, epoch):
 
     for batch_idx, (data, target) in enumerate(train_loader):
         data, target = data.to(device), target.to(device)
+        target = target.long()
         optimizer.zero_grad()
         output = model(data)
-#        print(f'target=\n{target}')
-#        loss = F.nll_loss(output, target)
-        loss = F.cross_entropy(output, target)
+
+        loss = F.nll_loss(output, target)
+
         loss.backward()
         optimizer.step()
         if batch_idx % (2) == 0:
@@ -65,25 +78,35 @@ def test(model, device, test_loader):
         for data, target in test_loader:
             data, target = data.to(device), target.to(device)
             output = model(data)
-            loss = F.cross_entropy(output, target).item()
+
+            target = target.long()
+
+            loss = F.nll_loss(output, target)
 #            test_loss += F.nll_loss(output, target, reduction='sum').item()
-            pred = output.argmax(dim=1, keepdim=True)
-            correct += pred.eq(target.view_as(pred)).sum().item()
+#            pred = torch.cat([
+#                output[:10].argmax(dim=1, keepdim=True),
+#                output[10:20].argmax(dim=1, keepdim=True),
+#                output[20:30].argmax(dim=1, keepdim=True),
+#                output[30:40].argmax(dim=1, keepdim=True)])
 
-    test_loss /= len(test_loader.dataset)
+#            correct += pred.eq(target.view_as(pred)).sum().item()
 
-    print('\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(
-        test_loss, correct, len(test_loader.dataset),
-        100. * correct / len(test_loader.dataset)))
+#    test_loss /= len(test_loader.dataset)
+
+    print('\nTesst')
+#    print('\nTest set: Average loss: {:.4f}
+#    print('\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(
+#        test_loss, correct, len(test_loader.dataset),
+#        100. * correct / len(test_loader.dataset)))
 
 
 def main():
 
     torch.manual_seed(0)
-    device = torch.device('cuda')
+    device = torch.device('cpu')
 
-    BATCH_SIZE = 20
-    TEST_BATCH_SIZE = 10
+    BATCH_SIZE = 128
+    TEST_BATCH_SIZE = 1024
     EPOCHS = 3
 
     args = {'batch_size': BATCH_SIZE,
@@ -108,7 +131,7 @@ def main():
 
     model = CnnModel().to(device)
 
-    optimizer = optim.Adam(model.parameters(), lr=0.01)
+    optimizer = optim.Adam(model.parameters(), lr=0.001)
 
     for epoch in range(1, EPOCHS + 1):
         train(args, model, device, train_loader, optimizer, epoch)
