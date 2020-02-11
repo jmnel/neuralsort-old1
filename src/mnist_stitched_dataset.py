@@ -1,7 +1,6 @@
 import os.path
 import torch
 import pickle
-import torch
 
 DATA_PATH = os.path.join(os.path.dirname(os.path.realpath(__file__)),
                          '..', 'data', 'mnist_stitched.pkl')
@@ -24,7 +23,7 @@ class StitchedMNIST(torch.utils.data.Dataset):
         if torch.is_tensor(idx):
             idx = idx.tolist()
 
-        img = self.data[idx][0].reshape(28, 112)
+        img = self.data[idx][0].reshape(112, 28)
         label = self.data[idx][1]
 
         s = str(label)

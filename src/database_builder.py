@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 import matplotlib
 matplotlib.use('GTK3Cairo')
 
-NUM_IMAGES = 100000
+NUM_IMAGES = 10000
 STITCH_SIZE = 4
 DATA_PATH = os.path.join(os.path.dirname(os.path.realpath(__file__)),
                          '..', 'data')
@@ -106,7 +106,7 @@ class MnistDatasetBuilder:
                 stitch = torch.cat([
                     stitch,
                     glyph[0]
-                ], 1)
+                ], 0)
 
                 stitch_label += label * 10**(STITCH_SIZE - j - 1)
 
