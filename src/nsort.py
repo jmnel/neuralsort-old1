@@ -12,9 +12,9 @@ from mnist_sequence_dataset import MnistSequenceDataset
 torch.manual_seed(0)
 device = torch.device('cuda')
 
-BATCH_SIZE = 50
+BATCH_SIZE = 200
 TEST_BATCH_SIZE = 1
-EPOCHS = 100
+EPOCHS = 1000
 NUM_DIGITS = 4
 NUM_SEQUENCES = 5
 
@@ -62,6 +62,8 @@ def train(model, device, train_loader, optimizer, epoch):
 
     model.train()
 
+    avg_loss = 0
+
     for batch_idx, (x, y) in enumerate(train_loader):
 
         optimizer.zero_grad()
@@ -80,8 +82,14 @@ def train(model, device, train_loader, optimizer, epoch):
 
             for j in range(NUM_SEQUENCES):
                 s = model(x[i:i+1, j:j+1, :, :])
+#                print(f's={s}')
 
-            scores[i, j] = s
+                scores[i, j] = s
+
+#        print('foo')
+#        print(scores)
+
+#        exit()
 
         scores = scores.reshape((BATCH_SIZE, NUM_SEQUENCES, 1))
         true_scores = y.reshape((BATCH_SIZE, NUM_SEQUENCES, 1))
@@ -91,6 +99,7 @@ def train(model, device, train_loader, optimizer, epoch):
         p_hat = compute_permu_matrix(scores, 5)
 
         foo = F.log_softmax(p_hat+1e-20, dim=1)
+#        foo = torch.log(foo)
         loss = -torch.sum(p_true * foo, dim=1).mean()
         loss.backward()
         optimizer.step()
@@ -100,6 +109,9 @@ def train(model, device, train_loader, optimizer, epoch):
                 epoch, batch_idx * len(x),
                 len(train_loader.dataset),
                 100. * batch_idx / len(train_loader), loss.item()))
+#            print(p_true[0])
+#            print(p_hat[0])
+#            print(scores[0])
 
 #        bp_true[i] = p_true
 #        bp_hat[i] = p_hat
@@ -147,13 +159,13 @@ test_loader = torch.utils.data.DataLoader(
         train=False, size=10000),
     batch_size=BATCH_SIZE, shuffle=True, pin_memory=True)
 
-print(len(train_loader.dataset))
+# print(len(train_loader.dataset))
 
 model = DeepCnn(num_digits=NUM_DIGITS)
 
 model = model.to(device)
 
-optimizer = optim.Adam(model.parameters(), lr=1e-4)
+optimizer = optim.Adam(model.parameters(), lr=0.0001)
 
 for epoch in range(EPOCHS):
     train(model, device, train_loader, optimizer, epoch)
