@@ -10,11 +10,11 @@ from mnist_sequence_dataset import MnistSequenceDataset
 # from mnist_stitched_dataset import StitchedMNIST
 
 torch.manual_seed(0)
-device = torch.device('cuda')
+device = torch.device('cpu')
 
-BATCH_SIZE = 200
+BATCH_SIZE = 10
 TEST_BATCH_SIZE = 1
-EPOCHS = 1000
+EPOCHS = 3
 NUM_DIGITS = 4
 NUM_SEQUENCES = 5
 
@@ -81,7 +81,7 @@ def train(model, device, train_loader, optimizer, epoch):
         for i in range(BATCH_SIZE):
 
             for j in range(NUM_SEQUENCES):
-                s = model(x[i:i+1, j:j+1, :, :])
+                s = model(x[i:i + 1, j:j + 1, :, :])
 #                print(f's={s}')
 
                 scores[i, j] = s
@@ -98,7 +98,8 @@ def train(model, device, train_loader, optimizer, epoch):
         p_true = compute_permu_matrix(true_scores, 1e-10)
         p_hat = compute_permu_matrix(scores, 5)
 
-        foo = F.log_softmax(p_hat+1e-20, dim=1)
+#        foo = torch.log(p_hat + 1e-20, dim=1)
+        foo = torch.log(p_hat + 1e-20)
 #        foo = torch.log(foo)
         loss = -torch.sum(p_true * foo, dim=1).mean()
         loss.backward()

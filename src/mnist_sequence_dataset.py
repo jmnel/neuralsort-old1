@@ -72,9 +72,9 @@ class MnistSequenceDataset(torch.utils.data.Dataset):
 
             seq_labels = torch.tensor([s[1] for s in seq])
 
-            perm = torch.argsort(seq_labels)
+#            perm = torch.argsort(seq_labels)
 
-            return (seq_img, perm)
+            return (seq_img, seq_labels)
 
 #        a, b = gen_sequence()
 #        exit()
