@@ -16,8 +16,10 @@ class MnistSequenceDataset(torch.utils.data.Dataset):
     def __init__(self,
                  num_stitched,
                  seq_length,
-                 train_size,
-                 test_size,
+                 size,
+                 train=True,
+                 #                 train_size,
+                 #                 test_size,
                  transform=None):
         super().__init__()
 
@@ -29,79 +31,74 @@ class MnistSequenceDataset(torch.utils.data.Dataset):
         data_path = path.dirname(path.realpath(__file__))
         data_path = path.join(data_path, '..', 'data')
 
-        save_path = path.join(data_path, 'mnist_sequence.pkl')
+        file_name = 'mnist_seq_train.pkl' if train else 'mnist_seq_test.pkl'
+        save_path = path.join(data_path, file_name)
 
         file_exists = path.exists(save_path)
 
-        print(f'file exists={file_exists}')
-        print(f'path={data_path}')
+#        print(f'file exists={file_exists}')
+#        print(f'path={data_path}')
 
-        train_load_data = datasets.MNIST(data_path, train=True, download=True,
-                                         transform=transforms.ToTensor())
-        test_load_data = datasets.MNIST(data_path, train=False, download=True,
-                                        transform=transforms.ToTensor())
+        mnist_data = datasets.MNIST(data_path, train=train, download=True,
+                                    transform=transforms.ToTensor())
 
-        train_load_batch_size = len(train_load_data)
-        test_load_batch_size = len(test_load_data)
+        mnist_batch_size = len(mnist_data)
 
-        train_load_dataloader = DataLoader(train_load_data,
-                                           batch_size=train_load_batch_size,
-                                           shuffle=True)
-        test_load_dataloader = DataLoader(test_load_data,
-                                          batch_size=train_load_batch_size,
-                                          shuffle=True)
+        mnist_dataloader = DataLoader(mnist_data,
+                                      batch_size=mnist_batch_size,
+                                      shuffle=True)
 
-        train_digits_img, train_digits_labels = next(
-            iter(train_load_dataloader))
-        test_digits_img, test_digits_labels = next(iter(test_load_dataloader))
-
-        train_digits_img = torch.reshape(
-            train_digits_img, (train_load_batch_size, 28, 28))
-        test_digits_img = torch.reshape(
-            test_digits_img, (test_load_batch_size, 28, 28))
+        mnist_img, mnist_labels = next(iter(mnist_dataloader))
+        mnist_img = mnist_img.reshape((mnist_batch_size, 28, 28))
 
         def gen_stitch():
-            picks = tuple(randint(0, train_load_batch_size - 1)
+            picks = tuple(randint(0, mnist_batch_size - 1)
                           for k in range(num_stitched))
 
             stitch_img = torch.cat([
-                train_digits_img[p] for p in picks], 1)
+                mnist_img[p] for p in picks], 1)
 
             stitch_label = sum(
-                train_digits_labels[picks[k]] * 10**(num_stitched - k - 1)
+                mnist_labels[picks[k]] * 10**(num_stitched - k - 1)
                 for k in range(num_stitched))
 
             return (stitch_img, stitch_label)
 
-#        for i in range(test_size):
-
         def gen_sequence():
-            sequence = tuple(gen_stitch() for j in range(seq_length))
-            sequence_img = torch.cat([s[0] for s in sequence], 0)
-            sequence_labels = tuple(s[1] for s in sequence)
+            seq = tuple(gen_stitch() for j in range(seq_length))
+            seq_img = torch.stack([s[0] for s in seq], 0)
 
-            perm_sort = np.argsort(sequence_labels)
+#            print(f'img shape={seq_img.shape}')
 
-            sequence_labels = (sequence[p][1] for p in perm_sort)
-            sequence_img = torch.cat([sequence[p][0] for p in perm_sort], 0)
+            seq_labels = torch.tensor([s[1] for s in seq])
 
-            return (sequence_img, perm_sort)
+            perm = torch.argsort(seq_labels)
 
-#            print(perm_sort)
-#            print(tuple(sequence_labels))
-#            plt.imshow(sequence_img)
-#            plt.show()
-#            exit()
+            return (seq_img, perm)
 
-        x, y = gen_sequence()
+#        a, b = gen_sequence()
+#        exit()
 
-        print(y)
+        print(
+            f'  Generating {size} {seq_length}-sequences of {num_stitched}-stitches...')
+        self.data = list([gen_sequence() for i in range(size)])
+        print('Done')
 
-        plt.imshow(x)
-        plt.show()
+    def __len__(self):
+        return len(self.data)
 
-        print('done')
+    def __getitem__(self, idx):
+        if torch.is_tensor(idx):
+            idx = idx.tolist()
+
+        img = self.data[idx][0]
+        label = self.data[idx][1]
+
+        if self.transform:
+            img = self.transform(img)
+
+        return (img, label)
 
 
-foo = MnistSequenceDataset(num_stitched=4, seq_length=5,
-                           train_size=10000, test_size=10000)
+# foo = MnistSequenceDataset(num_stitched=4, seq_length=5,
+#                           size=100)
