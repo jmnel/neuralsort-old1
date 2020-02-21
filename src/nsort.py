@@ -10,7 +10,7 @@ from mnist_sequence_dataset import MnistSequenceDataset
 # from mnist_stitched_dataset import StitchedMNIST
 
 torch.manual_seed(0)
-device = torch.device('cuda')
+device = torch.device('gpu')
 
 BATCH_SIZE = 20
 TEST_BATCH_SIZE = 1000
@@ -30,7 +30,6 @@ def compute_permu_matrix(s: torch.FloatTensor, tau=1):
     one = torch.ones(n, 1)
     b = _bl_matmul(mat_as, one @ one.transpose(0, 1))
     k = torch.arange(n) + 1
-#    d = torch.tensor(n + 1 - 2 * k).unsqueeze(0)
     d = (n + 1 - 2 * k).float().detach().requires_grad_(True).unsqueeze(0)
     c = _bl_matmul(s, d)
     mat_p = (c - b).permute(0, 2, 1)
@@ -42,8 +41,7 @@ def compute_permu_matrix(s: torch.FloatTensor, tau=1):
 def _prop_any_correct(p1, p2):
     z1 = torch.argmax(p1, axis=-1)
     z2 = torch.argmax(p2, axis=-1)
-    eq = torch.eq(z1, z2)
-    eq = eq.type(torch.FloatTensor)
+    eq = torch.eq(z1, z2).float()
     correct = torch.mean(eq, axis=-1)
     return torch.mean(correct)
 
@@ -55,22 +53,11 @@ def _prop_correct(p1, p2):
     correct = torch.sum(eq, axis=-1)
     return torch.sum(correct)
 
-#
-# s = torch.randn(2, 5, 1)
-
-# foo = compute_permu_matrix(s)
-
-# print(foo.shape)
-# print(foo)
-
 
 def train(model, device, train_loader, optimizer, epoch):
 
-    #    print(f'Train Epoch: {epoch}')
-
     model.train()
-
-    avg_loss = 0
+    avg_loss = 0.
 
     for batch_idx, (x, y) in enumerate(train_loader):
 
@@ -95,10 +82,7 @@ def train(model, device, train_loader, optimizer, epoch):
         p_true = compute_permu_matrix(true_scores, 1e-10)
         p_hat = compute_permu_matrix(scores, 5)
 
-#        foo = torch.log(p_hat + 1e-20, dim=1)
-        foo = torch.log(p_hat + 1e-20)
-#        foo = torch.log(foo)
-        loss = -torch.sum(p_true * foo, dim=1).mean()
+        loss = -torch.sum(p_true * torch.log(p_hat + 1e-20), dim=1).mean()
         loss.backward()
         optimizer.step()
 
@@ -112,8 +96,10 @@ def train(model, device, train_loader, optimizer, epoch):
 def test(model, device, test_loader):
     model.eval()
     test_loss = 0
-    correct = 0.
-    correct_any = 0.
+
+    p_cs = list()
+    p_acs = list()
+
     with torch.no_grad():
         for x, y in test_loader:
             x, y = x.to(device), y.to(device)
@@ -128,29 +114,29 @@ def test(model, device, test_loader):
                     scores[i, j] = s
 
             scores = scores.reshape((TEST_BATCH_SIZE, NUM_SEQUENCES, 1))
-            true_scores = y.reshape((TEST_BATCH_SIZE, NUM_SEQUENCES, 1))
-            true_scores = true_scores.type(torch.FloatTensor)
+            true_scores = y.reshape(
+                (TEST_BATCH_SIZE, NUM_SEQUENCES, 1)).float()
 
             p_true = compute_permu_matrix(true_scores, 1e-10)
             p_hat = compute_permu_matrix(scores, 5)
 
-#            print(f'any2={_prop_any_correct(p_true,p_hat)}')
+            p_cs.append(_prop_correct(p_true, p_hat))
+            p_acs.append(_prop_any_correct(p_true, p_hat))
 
-            correct += _prop_correct(p_true, p_hat)
-            correct_any += _prop_any_correct(p_true, p_hat)
-
-            foo = torch.log(p_hat + 1e-20)
-    #        foo = torch.log(foo)
-            test_loss += -torch.sum(p_true * foo, dim=1).mean()
+            test_loss += - \
+                torch.sum(p_true * torch.log(p_hat + 1e-20), dim=1).mean()
 
     test_loss /= len(test_loader.dataset)
+    p_c = np.mean(p_cs)
+    p_ac = np.mean(p_acs)
 
-    print('\nTest avg loss: {:.4f}, accuracy: {}/{} ({:.0f}%)\n'.format(
-        test_loss, correct/5, len(test_loader.dataset),
-        100. * (correct/5.) / len(test_loader.dataset)
-    ))
-
-# device = torch.device('cpu')
+    print('\nTest avg. loss: {:.4f}'.format(test_loss))
+    print('  all correct: {:.4f}%'.format(p_cs))
+    print('  any correct: {:.4f}%'.format(p_acs))
+#    print('\nTest avg loss: {:.4f}, accuracy: {}/{} ({:.0f}%)\n'.format(
+#        test_loss, correct / 5, len(test_loader.dataset),
+#        100. * (correct / 5.) / len(test_loader.dataset)
+#    ))
 
 
 train_loader = torch.utils.data.DataLoader(
