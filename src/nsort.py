@@ -12,9 +12,9 @@ from mnist_sequence_dataset import MnistSequenceDataset
 torch.manual_seed(0)
 device = torch.device('cpu')
 
-BATCH_SIZE = 10
-TEST_BATCH_SIZE = 1
-EPOCHS = 3
+BATCH_SIZE = 20
+TEST_BATCH_SIZE = 10
+EPOCHS = 200
 NUM_DIGITS = 4
 NUM_SEQUENCES = 5
 
@@ -42,10 +42,18 @@ def compute_permu_matrix(s: torch.FloatTensor, tau=1):
 def _prop_any_correct(p1, p2):
     z1 = torch.argmax(p1, axis=-1)
     z2 = torch.argmax(p2, axis=-1)
-    eq = torch.equal(z1, z2)
+    eq = torch.eq(z1, z2)
     eq = eq.type(torch.FloatTensor)
     correct = torch.mean(eq, axis=-1)
     return torch.mean(correct)
+
+
+def _prop_correct(p1, p2):
+    z1 = torch.argmax(p1, axis=-1)
+    z2 = torch.argmax(p2, axis=-1)
+    eq = torch.eq(z1, z2).float()
+    correct = torch.sum(eq, axis=-1)
+    return torch.sum(correct)
 
 #
 # s = torch.randn(2, 5, 1)
@@ -71,25 +79,14 @@ def train(model, device, train_loader, optimizer, epoch):
         x = x.to(device)
         y = y.to(device)
 
-        batch_losses = torch.zeros(BATCH_SIZE)
-
-        bp_true = torch.zeros(BATCH_SIZE, NUM_SEQUENCES, NUM_SEQUENCES)
-        bp_hat = torch.zeros(BATCH_SIZE, NUM_SEQUENCES, NUM_SEQUENCES)
-
         scores = torch.zeros(BATCH_SIZE, NUM_SEQUENCES)
 
         for i in range(BATCH_SIZE):
 
             for j in range(NUM_SEQUENCES):
                 s = model(x[i:i + 1, j:j + 1, :, :])
-#                print(f's={s}')
 
                 scores[i, j] = s
-
-#        print('foo')
-#        print(scores)
-
-#        exit()
 
         scores = scores.reshape((BATCH_SIZE, NUM_SEQUENCES, 1))
         true_scores = y.reshape((BATCH_SIZE, NUM_SEQUENCES, 1))
@@ -110,54 +107,61 @@ def train(model, device, train_loader, optimizer, epoch):
                 epoch, batch_idx * len(x),
                 len(train_loader.dataset),
                 100. * batch_idx / len(train_loader), loss.item()))
-#            print(p_true[0])
-#            print(p_hat[0])
-#            print(scores[0])
-
-#        bp_true[i] = p_true
-#        bp_hat[i] = p_hat
-
-#        scores = scores.reshape((1, 5, 1))
-#        true_scores = seq_s_true.reshape((1, 5, 1))
-#        print(true_scores.shape)
-#        print(scores.shape)
-
-#        true_scores = true_scores.type(torch.FloatTensor)
-
-#        mat_p_true = compute_permu_matrix(true_scores, 1e-10)
-#        mat_p_hat = compute_permu_matrix(scores, 5)
-
-#        print(mat_p_true)
-#        print(mat_p_hat)
-
-#        logits = torch.log(mat_p_hat + 1e-20)
-
-#        foo = F.log_softmax(mat_p_hat, dim=1)
-#        loss = -torch.sum(mat_p_true * foo, dim=1).mean()
-
-#        loss.backward()
-#        optimizer.step()
-
-#        print(loss)
-
-#        exit()
 
 
 def test(model, device, test_loader):
-    pass
+    model.eval()
+    test_loss = 0
+    correct = 0.
+    correct_any = 0.
+    with torch.no_grad():
+        for x, y in test_loader:
+            x, y = x.to(device), y.to(device)
 
+            scores = torch.zeros(TEST_BATCH_SIZE, NUM_SEQUENCES)
 
-#device = torch.device('cpu')
+            for i in range(BATCH_SIZE):
+
+                for j in range(NUM_SEQUENCES):
+                    s = model(x[i:i + 1, j:j + 1, :, :])
+
+                    scores[i, j] = s
+
+            scores = scores.reshape((BATCH_SIZE, NUM_SEQUENCES, 1))
+            true_scores = y.reshape((BATCH_SIZE, NUM_SEQUENCES, 1))
+            true_scores = true_scores.type(torch.FloatTensor)
+
+            p_true = compute_permu_matrix(true_scores, 1e-10)
+            p_hat = compute_permu_matrix(scores, 5)
+
+#            print(f'any2={_prop_any_correct(p_true,p_hat)}')
+
+            correct += _prop_correct(p_true, p_hat)
+            correct_any += _prop_any_correct(p_true, p_hat)
+
+            foo = torch.log(p_hat + 1e-20)
+    #        foo = torch.log(foo)
+            test_loss += -torch.sum(p_true * foo, dim=1).mean()
+
+    test_loss /= len(test_loader.dataset)
+
+    print('\nTest avg loss{:.4f}, accuracy: {}/{} ({:.0f}%)\n'.format(
+        test_loss, correct, len(test_loader.dataset),
+        100. * correct / len(test_loader.dataset)
+    ))
+
+# device = torch.device('cpu')
+
 
 train_loader = torch.utils.data.DataLoader(
     MnistSequenceDataset(
         num_stitched=4, seq_length=5,
-        size=10000),
+        size=1000),
     batch_size=BATCH_SIZE, shuffle=True, pin_memory=True)
 test_loader = torch.utils.data.DataLoader(
     MnistSequenceDataset(
         num_stitched=4, seq_length=5,
-        train=False, size=10000),
+        train=False, size=100),
     batch_size=BATCH_SIZE, shuffle=True, pin_memory=True)
 
 # print(len(train_loader.dataset))
@@ -171,5 +175,3 @@ optimizer = optim.Adam(model.parameters(), lr=0.0001)
 for epoch in range(EPOCHS):
     train(model, device, train_loader, optimizer, epoch)
     test(model, device, test_loader)
-#    optimizer.step()
-# data = next(iter(train_loader))
