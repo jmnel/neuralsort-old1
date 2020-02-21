@@ -10,10 +10,10 @@ from mnist_sequence_dataset import MnistSequenceDataset
 # from mnist_stitched_dataset import StitchedMNIST
 
 torch.manual_seed(0)
-device = torch.device('cpu')
+device = torch.device('cuda')
 
 BATCH_SIZE = 20
-TEST_BATCH_SIZE = 10
+TEST_BATCH_SIZE = 1000
 EPOCHS = 200
 NUM_DIGITS = 4
 NUM_SEQUENCES = 5
@@ -120,15 +120,15 @@ def test(model, device, test_loader):
 
             scores = torch.zeros(TEST_BATCH_SIZE, NUM_SEQUENCES)
 
-            for i in range(BATCH_SIZE):
+            for i in range(TEST_BATCH_SIZE):
 
                 for j in range(NUM_SEQUENCES):
                     s = model(x[i:i + 1, j:j + 1, :, :])
 
                     scores[i, j] = s
 
-            scores = scores.reshape((BATCH_SIZE, NUM_SEQUENCES, 1))
-            true_scores = y.reshape((BATCH_SIZE, NUM_SEQUENCES, 1))
+            scores = scores.reshape((TEST_BATCH_SIZE, NUM_SEQUENCES, 1))
+            true_scores = y.reshape((TEST_BATCH_SIZE, NUM_SEQUENCES, 1))
             true_scores = true_scores.type(torch.FloatTensor)
 
             p_true = compute_permu_matrix(true_scores, 1e-10)
@@ -145,9 +145,9 @@ def test(model, device, test_loader):
 
     test_loss /= len(test_loader.dataset)
 
-    print('\nTest avg loss{:.4f}, accuracy: {}/{} ({:.0f}%)\n'.format(
-        test_loss, correct, len(test_loader.dataset),
-        100. * correct / len(test_loader.dataset)
+    print('\nTest avg loss: {:.4f}, accuracy: {}/{} ({:.0f}%)\n'.format(
+        test_loss, correct/5, len(test_loader.dataset),
+        100. * (correct/5.) / len(test_loader.dataset)
     ))
 
 # device = torch.device('cpu')
@@ -156,13 +156,13 @@ def test(model, device, test_loader):
 train_loader = torch.utils.data.DataLoader(
     MnistSequenceDataset(
         num_stitched=4, seq_length=5,
-        size=1000),
+        size=10000),
     batch_size=BATCH_SIZE, shuffle=True, pin_memory=True)
 test_loader = torch.utils.data.DataLoader(
     MnistSequenceDataset(
         num_stitched=4, seq_length=5,
-        train=False, size=100),
-    batch_size=BATCH_SIZE, shuffle=True, pin_memory=True)
+        train=False, size=10000),
+    batch_size=TEST_BATCH_SIZE, shuffle=True, pin_memory=True)
 
 # print(len(train_loader.dataset))
 
