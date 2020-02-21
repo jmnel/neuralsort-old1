@@ -10,10 +10,12 @@ from mnist_sequence_dataset import MnistSequenceDataset
 # from mnist_stitched_dataset import StitchedMNIST
 
 torch.manual_seed(0)
-device = torch.device('gpu')
+device = torch.device('cuda')
 
+TRAIN_SIZE = 50000
+TEST_SIZE = 10000
 BATCH_SIZE = 20
-TEST_BATCH_SIZE = 1000
+TEST_BATCH_SIZE = 20
 EPOCHS = 200
 NUM_DIGITS = 4
 NUM_SEQUENCES = 5
@@ -49,8 +51,8 @@ def _prop_any_correct(p1, p2):
 def _prop_correct(p1, p2):
     z1 = torch.argmax(p1, axis=-1)
     z2 = torch.argmax(p2, axis=-1)
-    eq = torch.eq(z1, z2).float()
-    correct = torch.sum(eq, axis=-1)
+    eq = torch.eq(z1, z2)
+    correct = torch.all(eq, axis=-1).float()
     return torch.sum(correct)
 
 
@@ -80,12 +82,13 @@ def train(model, device, train_loader, optimizer, epoch):
         true_scores = true_scores.type(torch.FloatTensor)
 
         p_true = compute_permu_matrix(true_scores, 1e-10)
-        p_hat = compute_permu_matrix(scores, 5)
+        p_hat = compute_permu_matrix(scores, 8)
 
         loss = -torch.sum(p_true * torch.log(p_hat + 1e-20), dim=1).mean()
         loss.backward()
         optimizer.step()
 
+#        if True:
         if batch_idx % 20 == 0:
             print('Train epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
                 epoch, batch_idx * len(x),
@@ -97,8 +100,8 @@ def test(model, device, test_loader):
     model.eval()
     test_loss = 0
 
-    p_cs = list()
-    p_acs = list()
+    correct = 0
+    any_correct = 0.0
 
     with torch.no_grad():
         for x, y in test_loader:
@@ -114,40 +117,35 @@ def test(model, device, test_loader):
                     scores[i, j] = s
 
             scores = scores.reshape((TEST_BATCH_SIZE, NUM_SEQUENCES, 1))
-            true_scores = y.reshape(
-                (TEST_BATCH_SIZE, NUM_SEQUENCES, 1)).float()
+            true_scores = y.reshape((TEST_BATCH_SIZE, NUM_SEQUENCES, 1))
+            true_scores = true_scores.type(torch.FloatTensor)
 
             p_true = compute_permu_matrix(true_scores, 1e-10)
-            p_hat = compute_permu_matrix(scores, 5)
+            p_hat = compute_permu_matrix(scores, 8)
 
-            p_cs.append(_prop_correct(p_true, p_hat))
-            p_acs.append(_prop_any_correct(p_true, p_hat))
+            correct += _prop_correct(p_true, p_hat)
+            any_correct += _prop_any_correct(p_true, p_hat)
 
-            test_loss += - \
+            test_loss = - \
                 torch.sum(p_true * torch.log(p_hat + 1e-20), dim=1).mean()
 
-    test_loss /= len(test_loader.dataset)
-    p_c = np.mean(p_cs)
-    p_ac = np.mean(p_acs)
-
     print('\nTest avg. loss: {:.4f}'.format(test_loss))
-    print('  all correct: {:.4f}%'.format(p_cs))
-    print('  any correct: {:.4f}%'.format(p_acs))
-#    print('\nTest avg loss: {:.4f}, accuracy: {}/{} ({:.0f}%)\n'.format(
-#        test_loss, correct / 5, len(test_loader.dataset),
-#        100. * (correct / 5.) / len(test_loader.dataset)
-#    ))
+    print('  all correct: {:.0f} / {:.0f} = {:.1f}%'.format(
+        correct, len(test_loader.dataset),
+        100. * correct / len(test_loader.dataset)))
+    print('  any correct: {:.1f}%'.format(
+        100. * any_correct * TEST_BATCH_SIZE / len(test_loader.dataset)))
 
 
 train_loader = torch.utils.data.DataLoader(
     MnistSequenceDataset(
         num_stitched=4, seq_length=5,
-        size=10000),
+        size=TRAIN_SIZE),
     batch_size=BATCH_SIZE, shuffle=True, pin_memory=True)
 test_loader = torch.utils.data.DataLoader(
     MnistSequenceDataset(
         num_stitched=4, seq_length=5,
-        train=False, size=10000),
+        train=False, size=TEST_SIZE),
     batch_size=TEST_BATCH_SIZE, shuffle=True, pin_memory=True)
 
 # print(len(train_loader.dataset))
