@@ -1,3 +1,5 @@
+from time import perf_counter
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -12,13 +14,13 @@ from mnist_sequence_dataset import MnistSequenceDataset
 torch.manual_seed(0)
 device = torch.device('cuda')
 
-TRAIN_SIZE = 50000
-TEST_SIZE = 10000
-BATCH_SIZE = 20
-TEST_BATCH_SIZE = 20
+TRAIN_SIZE = 6400
+TEST_SIZE = 1600
+BATCH_SIZE = 64
+TEST_BATCH_SIZE = 64
 EPOCHS = 200
 NUM_DIGITS = 4
-NUM_SEQUENCES = 5
+NUM_SEQUENCES = 3
 
 
 def _bl_matmul(mat_a, mat_b):
@@ -59,7 +61,10 @@ def _prop_correct(p1, p2):
 def train(model, device, train_loader, optimizer, epoch):
 
     model.train()
+
     avg_loss = 0.
+
+    t_start = perf_counter()
 
     for batch_idx, (x, y) in enumerate(train_loader):
 
@@ -72,28 +77,33 @@ def train(model, device, train_loader, optimizer, epoch):
 
         for i in range(BATCH_SIZE):
 
-            for j in range(NUM_SEQUENCES):
-                s = model(x[i:i + 1, j:j + 1, :, :])
-
-                scores[i, j] = s
+            foo = model(x[i:i + 1, :, :].reshape((3, 1, 28, 112))
+                        ).reshape((1, NUM_SEQUENCES))
+            scores[i] = foo
 
         scores = scores.reshape((BATCH_SIZE, NUM_SEQUENCES, 1))
+
         true_scores = y.reshape((BATCH_SIZE, NUM_SEQUENCES, 1))
         true_scores = true_scores.type(torch.FloatTensor)
 
         p_true = compute_permu_matrix(true_scores, 1e-10)
-        p_hat = compute_permu_matrix(scores, 8)
+        p_hat = compute_permu_matrix(scores, 5)
 
-        loss = -torch.sum(p_true * torch.log(p_hat + 1e-20), dim=1).mean()
+        loss = -torch.sum(p_true * torch.log(p_hat +
+                                             1e-20), dim=2).mean()
+
         loss.backward()
         optimizer.step()
 
-#        if True:
         if batch_idx % 20 == 0:
             print('Train epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
                 epoch, batch_idx * len(x),
                 len(train_loader.dataset),
-                100. * batch_idx / len(train_loader), loss.item()))
+                100. * batch_idx / len(train_loader), loss.item(),
+            ))
+
+    t_elapsed = perf_counter() - t_start
+    print('Train took {:.1f} seconds'.format(t_elapsed))
 
 
 def test(model, device, test_loader):
@@ -121,7 +131,7 @@ def test(model, device, test_loader):
             true_scores = true_scores.type(torch.FloatTensor)
 
             p_true = compute_permu_matrix(true_scores, 1e-10)
-            p_hat = compute_permu_matrix(scores, 8)
+            p_hat = compute_permu_matrix(scores, 5)
 
             correct += _prop_correct(p_true, p_hat)
             any_correct += _prop_any_correct(p_true, p_hat)
@@ -139,22 +149,20 @@ def test(model, device, test_loader):
 
 train_loader = torch.utils.data.DataLoader(
     MnistSequenceDataset(
-        num_stitched=4, seq_length=5,
+        num_stitched=4, seq_length=3,
         size=TRAIN_SIZE),
-    batch_size=BATCH_SIZE, shuffle=True, pin_memory=True)
+    batch_size=BATCH_SIZE, shuffle=False)
 test_loader = torch.utils.data.DataLoader(
     MnistSequenceDataset(
-        num_stitched=4, seq_length=5,
+        num_stitched=4, seq_length=3,
         train=False, size=TEST_SIZE),
-    batch_size=TEST_BATCH_SIZE, shuffle=True, pin_memory=True)
-
-# print(len(train_loader.dataset))
+    batch_size=TEST_BATCH_SIZE, shuffle=False)
 
 model = DeepCnn(num_digits=NUM_DIGITS)
 
 model = model.to(device)
 
-optimizer = optim.Adam(model.parameters(), lr=0.0001)
+optimizer = optim.Adam(model.parameters(), lr=1e-4)
 
 for epoch in range(EPOCHS):
     train(model, device, train_loader, optimizer, epoch)

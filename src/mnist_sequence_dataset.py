@@ -40,7 +40,11 @@ class MnistSequenceDataset(torch.utils.data.Dataset):
 #        print(f'path={data_path}')
 
         mnist_data = datasets.MNIST(data_path, train=train, download=True,
-                                    transform=transforms.ToTensor())
+                                    transform=transforms.Compose([
+                                        transforms.ToTensor(),
+                                        transforms.Normalize(
+                                            (0.1307,), (0.3081,))
+                                    ]))
 
         mnist_batch_size = len(mnist_data)
 
