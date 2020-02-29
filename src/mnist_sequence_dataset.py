@@ -5,6 +5,7 @@ import torch
 import pickle
 from torchvision import datasets, transforms
 from torch.utils.data import DataLoader
+from time import perf_counter
 
 import numpy as np
 
@@ -48,11 +49,15 @@ class MnistSequenceDataset(torch.utils.data.Dataset):
 
         mnist_batch_size = len(mnist_data)
 
+        t_start = perf_counter()
         mnist_dataloader = DataLoader(mnist_data,
                                       batch_size=mnist_batch_size,
-                                      shuffle=True)
+                                      shuffle=True,
+                                      num_workers=0
+                                      )
 
         mnist_img, mnist_labels = next(iter(mnist_dataloader))
+        print(perf_counter() - t_start)
         mnist_img = mnist_img.reshape((mnist_batch_size, 28, 28))
 
         def gen_stitch():
@@ -104,5 +109,5 @@ class MnistSequenceDataset(torch.utils.data.Dataset):
         return (img, label)
 
 
-# foo = MnistSequenceDataset(num_stitched=4, seq_length=5,
-#                           size=100)
+foo = MnistSequenceDataset(num_stitched=4, seq_length=5,
+                           size=100)

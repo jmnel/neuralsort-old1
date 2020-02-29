@@ -12,7 +12,7 @@ from mnist_sequence_dataset import MnistSequenceDataset
 # from mnist_stitched_dataset import StitchedMNIST
 
 torch.manual_seed(0)
-device = torch.device('cuda')
+device = torch.device('cpu')
 
 TRAIN_SIZE = 6400
 TEST_SIZE = 1600
