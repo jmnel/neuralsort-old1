@@ -3,6 +3,7 @@ from abc import ABC, abstractmethod
 from typing import List, Tuple, Union, Type
 import sqlite3
 import re
+from pathlib import Path
 
 
 class DatabaseConnector(ABC):
@@ -10,6 +11,10 @@ class DatabaseConnector(ABC):
     @staticmethod
     @abstractmethod
     def connect(*args, **kwargs) -> Type[DatabaseConnector]:
+        pass
+
+    @abstractmethod
+    def close(self):
         pass
 
     @abstractmethod
@@ -64,7 +69,7 @@ class SQLite3Connector(DatabaseConnector):
         self._connection = conn
 
     @classmethod
-    def connect(cls, db_file: str) -> SQLite3Connector:
+    def connect(cls, db_file: Path) -> SQLite3Connector:
         """
         Connects to sqlite3 database and returns connector.
 
@@ -76,6 +81,10 @@ class SQLite3Connector(DatabaseConnector):
 
         """
 
+        if not db_file.parent.is_dir():
+            raise NotADirectoryError(
+                'sqlite3 database path must have valid parent directory.')
+
         try:
             conn = sqlite3.connect(db_file)
 
@@ -83,7 +92,13 @@ class SQLite3Connector(DatabaseConnector):
             raise e
 
         else:
+            #            print(f'Connected to sqlite3 database at {db_file}.')
             return cls(conn)
+
+    def close(self):
+        assert(self._connection)
+        self._connection.close()
+#        print(f'Closed sliqte3 database.')
 
     def get_tables(self) -> List[str]:
         """
@@ -229,14 +244,18 @@ class SQLite3Connector(DatabaseConnector):
 
         # Create comma-seperated '?' for bindings.
         bindings = ','.join(('?' for _ in range(len(w_columns))))
+#        print(f'bindings = {bindings}')
+#        bindings = '(' + bindings + ')'
 
         # Construct sqlite3 query for INSERT.
         query = f'INSERT INTO {table} VALUES({bindings});'
 
+#        print(query)
+
         try:
             # Execute query.
             cursor = self._connection.cursor()
-            result = cursor.execute(query, values).fetchall()
+            result = cursor.executemany(query, values).fetchall()
 
         except sqlite3.Error as e:
             raise(e)
@@ -312,7 +331,7 @@ class SQLite3Connector(DatabaseConnector):
         # Try to execute query.
         try:
             cursor = self._connection.cursor()
-            cusor.execute(query)
+            cursor.execute(query)
         except sqlite3.Error as e:
             raise e
 
