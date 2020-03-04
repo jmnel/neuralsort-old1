@@ -182,11 +182,13 @@ class AlphaVantageDownloader:
         with self._lock:
             self._is_processing_flag = True
 
-        # This counter is needed to logging output interval.
+        # This counter is needed to limit logging output interval.
         log_i = 0
 
         # Loop while not all requests are processed.
         while any(not t['processed'] for t in self._requests):
+
+            # todo: check for duplicate in flight requests.
 
             # Look for completed requests and save them to the database.
             for t in self._requests:

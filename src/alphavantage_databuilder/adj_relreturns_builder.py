@@ -6,6 +6,7 @@ from db_connectors import SQLite3Connector
 from pathlib import Path
 from datetime import datetime
 from pprint import pprint
+import sqlite3
 
 import matplotlib
 matplotlib.use('Qt5Cairo')
@@ -47,8 +48,8 @@ class AdjRelReturnsBuilder:
         min_date = max(min_dates)
         max_date = min(max_dates)
 
-        print(min_date)
-        print(max_date)
+#        print(min_date)
+#        print(max_date)
 
         assert(all(min_dates[0][0] == x[0] for x in min_dates))
         assert(all(max_dates[0][0] == x[0] for x in max_dates))
@@ -70,19 +71,45 @@ class AdjRelReturnsBuilder:
             data[s] = list([float(x[0]) for x in close_price])
             m = len(data[s]) - 1
 
+        # Done with source database.
+        av_db.close()
+
         rel_returns = np.zeros((m, n))
         for j, s in enumerate(symbols):
             for i in range(m):
                 r0 = data[s][i]
                 r1 = data[s][i + 1]
-                rr = np.power(np.abs((r1 - r0) / r0), 1 / 8)
+                rr = np.clip((r1 - r0) / r1, -4.0, 0.5)
+#                rr = np.power(np.abs((r1 - r0) / r0), 1 / 8)
                 rel_returns[i, j] = rr
 
-        plt.plot(rel_returns[0:300, 0:8], linewidth=0.5)
-#        plt.plot(rel_returns[:, 1], linewidth=0.5)
-        plt.show()
+        # Open 'clean.db' sqlite3 database; create if doesn't exist'
+        db_clean = SQLite3Connector.connect(data_path / 'clean.db')
 
-        av_db.close()
+        # Delete relative returns table if it exsists.
+        try:
+            db_clean.drop_table('relative_returns_clean')
+
+        except sqlite3.OperationalError as e:
+            print('WARNING: Table \'relative_returns_clean\' doesn\'t exist.')
+
+        # Create table 'relative_returns'.
+        cols_props = [
+            {'name': 'id', 'dtype': 'INTEGER', 'not_null': True, 'pk': True}
+        ]
+        for j, s in enumerate(symbols):
+            cols_props.append({'name': s, 'dtype': 'FLOAT'})
+
+        db_clean.create_table('relative_returns_clean', cols_props)
+
+        values = [[None, ] + rel_returns[i].tolist()
+                  for i in range(len(rel_returns))]
+
+        cols = ['id', ] + [s for s in symbols]
+
+        db_clean.insert('relative_returns_clean', cols, values)
+        db_clean.commit()
+        db_clean.close()
 
 
 data_path = Path(__file__).absolute().parent.parent.parent / 'data'
