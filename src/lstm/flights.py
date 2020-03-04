@@ -12,6 +12,10 @@ from pprint import pprint
 flight_data = sns.load_dataset('flights')
 all_data = flight_data['passengers'].values.astype(float)
 
+#all_data = np.sin(np.linspace(0, 20, len(all_data))).astype(float)
+
+# all_data.astype(float)
+
 test_data_size = 12
 
 train_data = all_data[:-test_data_size]
@@ -20,9 +24,16 @@ test_data = all_data[-test_data_size:]
 from sklearn.preprocessing import MinMaxScaler
 
 scaler = MinMaxScaler(feature_range=(-1, 1))
-train_data_normalized = scaler.fit_transform(train_data.reshape(-1, 1))
+train_data_normalized = scaler.fit_transform(
+    train_data.reshape(-1, 1)).view(-1)
 
-train_data_normalized = torch.FloatTensor(train_data_normalized).view(-1)
+print(type(train_data))
+print(train_data.shape)
+
+exit()
+#train_data_normalized = train_data.reshape(-1, 1).view(-1)
+
+print(train_data.shape)
 
 train_window = 12
 
