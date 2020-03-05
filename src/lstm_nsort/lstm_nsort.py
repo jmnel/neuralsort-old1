@@ -5,21 +5,28 @@ sys.path.append(str(Path(__file__).absolute().parent.parent / 'libs'))
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import torch.optim as optim
+
+import matplotlib
+matplotlib.use('Qt5Cairo')
+import matplotlib.pyplot as plt
 
 from db_connectors import SQLite3Connector
-from alphavantage import relret_dataset
+from alphavantage import RelativeReturnsDataset
+from lstm_model import LstmModel
 
 torch.manual_seed(0)
 device = torch.device('cpu')
 
+num_layers = 4
 
-train_size = 6400
-test_size = 1600
+train_size = 640
+test_size = 160
 train_batch_size = 1
 test_batch_size = 1
 
-epochs = 200
-forecast_window = 20
+epochs = 10
+forecast_window = 100
 num_seqences = 5
 
 
@@ -61,4 +68,58 @@ def _prop_correct(p1, p2):
 def train(model, device, train_loader, optimizer, epoch):
 
     model.train()
-    av
+
+    for batch_idx, (seq, label) in enumerate(train_loader):
+        optimizer.zero_grad()
+
+        seq = seq.to(device)
+        label = label.to(device)
+#        print(seq.shape)
+
+#        plt.plot(seq[0, :, :].t(), linewidth=0.2)
+#        plt.show()
+#        exit()
+
+        model.hidden_cell = (torch.zeros(num_layers, 1, 100).to(device),
+                             torch.zeros(num_layers, 1, 100).to(device))
+
+        scores = torch.zeros(num_seqences)
+
+        for i in range(5):
+            s = model(seq[0, i, :])
+            scores[i] = s
+
+        scores = scores.reshape((train_batch_size, num_seqences, 1))
+        true_scores = label
+
+        p_true = compute_permu_matrix(true_scores, 1e-10)
+        p_hat = compute_permu_matrix(scores, 5)
+
+        loss = -torch.sum(p_true * torch.log(p_hat + 1e-20), dim=-1).mean()
+
+        loss.backward()
+        optimizer.step()
+
+        print(loss)
+
+    print(f'epoch {epoch}')
+
+
+data_path = Path(__file__).absolute().parents[2] / 'data'
+
+train_loader = torch.utils.data.DataLoader(
+    RelativeReturnsDataset(data_path, train_size, forecast_window, 5, True),
+    batch_size=train_batch_size, shuffle=True)
+
+test_loader = torch.utils.data.DataLoader(
+    RelativeReturnsDataset(data_path, test_size, forecast_window, 5, True),
+    batch_size=test_batch_size, shuffle=True)
+
+model = LstmModel(num_layers=num_layers)
+model = model.to(device)
+
+optimizer = optim.Adam(model.parameters(), lr=1e-4)
+
+for epoch in range(epochs):
+
+    train(model, device, train_loader, optimizer, epoch)
