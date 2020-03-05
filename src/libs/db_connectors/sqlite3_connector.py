@@ -132,7 +132,7 @@ class SQLite3Connector(DatabaseConnector):
 
                 # Parse dtype into type and size using regex.
                 size = None
-                match = rex.match(dtype)
+                match = size_regex.match(dtype)
 
                 if match is not None:
                     dtype = match.group(1).upper()

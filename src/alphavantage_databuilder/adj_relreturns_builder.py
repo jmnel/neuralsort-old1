@@ -3,7 +3,6 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).absolute().parent.parent / 'libs'))
 
 from db_connectors import SQLite3Connector
-from pathlib import Path
 from datetime import datetime
 from pprint import pprint
 import sqlite3
