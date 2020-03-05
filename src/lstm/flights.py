@@ -12,7 +12,7 @@ from pprint import pprint
 flight_data = sns.load_dataset('flights')
 all_data = flight_data['passengers'].values.astype(float)
 
-#all_data = np.sin(np.linspace(0, 20, len(all_data))).astype(float)
+# all_data = np.sin(np.linspace(0, 20, len(all_data))).astype(float)
 
 # all_data.astype(float)
 
@@ -25,15 +25,9 @@ from sklearn.preprocessing import MinMaxScaler
 
 scaler = MinMaxScaler(feature_range=(-1, 1))
 train_data_normalized = scaler.fit_transform(
-    train_data.reshape(-1, 1)).view(-1)
+    train_data.reshape(-1, 1))
 
-print(type(train_data))
-print(train_data.shape)
-
-exit()
-#train_data_normalized = train_data.reshape(-1, 1).view(-1)
-
-print(train_data.shape)
+train_data_normalized = torch.FloatTensor(train_data_normalized).view(-1)
 
 train_window = 12
 
@@ -71,26 +65,65 @@ class LSTM(nn.Module):
         return predictions[-1]
 
 
+# x = train_inout_seq
+# x = x.to('cuda')
+
 model = LSTM()
+
+model = model.to('cuda')
 loss = nn.MSELoss()
 optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
 
-epochs = 150
+#epochs = 5
 
-for i in range(epochs):
-    for seq, labels in train_inout_seq:
+# for i in range(epochs):
+#    for seq, labels in train_inout_seq:
 
-        optimizer.zero_grad()
-        model.hidden_cell = (torch.zeros(1, 1, model.hidden_layer_size),
-                             torch.zeros(1, 1, model.hidden_layer_size))
+#        seq = seq.to('cuda')
+#        labels = labels.to('cuda')
 
-        y_pred = model(seq)
+#        optimizer.zero_grad()
+#        model.hidden_cell = (torch.zeros(1, 1, model.hidden_layer_size).to('cuda'),
+#                             torch.zeros(
+#                                 1, 1, model.hidden_layer_size).to('cuda'))
 
-        single_loss = loss(y_pred, labels)
-        single_loss.backward()
-        optimizer.step()
+#        y_pred = model(seq)
 
-    if i % 25 == 1:
-        print(f'epoch: {i:3} loss: {single_loss.item():10.8f}')
+#        single_loss = loss(y_pred, labels)
+#        single_loss.backward()
+#        optimizer.step()
 
-print(f'epoch: {i:3} loss: {single_loss.item():10.10f}')
+#    if i % 25 == 1:
+#        print(f'epoch: {i:3} loss: {single_loss.item():10.8f}')
+
+#print(f'epoch: {i:3} loss: {single_loss.item():10.10f}')
+
+# t_dom = list([
+#    list([float(i + j * 11) for i in range(12)])
+#    for j in range(12)])
+
+# assert(len(t_dom) == len(train_inout_seq))
+
+# x, y = train_inout_seq[0]
+
+# xd = [scaler.inverse_transform(np.array(q[0]).reshape(-1, 1))
+#      for q in train_inout_seq]
+
+#xd = list([q[0] for q in train_inout_seq])
+
+# for q in train_inout_seq:
+#    print(q)
+
+# exit()
+
+#k = 4
+
+# print(len(labels))
+
+# plt.plot(train_data_normalized)
+#plt.plot([i + 12 * k + 1 for i in range(12)], xd[k])
+#plt.xticks([i * 12 for i in range(12)])
+# plt.grid()
+
+# plt.plot(xd)
+# plt.show()
