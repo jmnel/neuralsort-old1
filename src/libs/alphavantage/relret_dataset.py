@@ -36,8 +36,19 @@ class RelativeReturnsDataset(torch.utils.data.Dataset):
         data = db.select(table, symbols)
         db.close()
 
-        offsets = [randint(0, len(data) - prediction_window - 1)
-                   for _ in range(size)]
+#        print(len(data))
+#        print(len(data) // prediction_window)
+#        print(prediction_window * 251)
+
+        if train:
+            offsets = [randint(0, len(data) - prediction_window - 1 - 1000)
+                       for _ in range(size)]
+        else:
+            offsets = [randint(len(data) - prediction_window - 1000, len(data) - prediction_window - 1)
+                       for _ in range(size)]
+
+#        offsets = [randint(0, len(data) - prediction_window - 1)
+#                   for _ in range(size)]
 
         for o in offsets:
             assert(o + prediction_window < len(data))
@@ -45,7 +56,7 @@ class RelativeReturnsDataset(torch.utils.data.Dataset):
         self.data = list()
         for i in range(size):
             o = offsets[i]
-            seq = torch.FloatTensor(data[o:o + prediction_window])
+            seq = torch.FloatTensor(data[o: o + prediction_window])
             labels = torch.FloatTensor(
                 data[o + prediction_window]).reshape((sequence_len, 1))
             self.data.append((seq, labels))
@@ -68,3 +79,8 @@ class RelativeReturnsDataset(torch.utils.data.Dataset):
             seq = self.transform(seq)
 
         return (seq, label)
+
+
+#data_path = Path(__file__).absolute().parents[3] / 'data'
+# print(data_path)
+#foo = RelativeReturnsDataset(data_path, 1000)
