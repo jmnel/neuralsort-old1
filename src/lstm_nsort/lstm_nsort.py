@@ -18,15 +18,15 @@ from lstm_model import LstmModel
 torch.manual_seed(0)
 device = torch.device('cpu')
 
-num_layers = 1
+num_layers = 4
 
-train_size = 640
-test_size = 160
-train_batch_size = 1
-test_batch_size = 1
+train_size = 6400
+test_size = 1600
+train_batch_size = 200
+test_batch_size = 200
 
-epochs = 10
-forecast_window = 10
+epochs = 100
+forecast_window = 50
 num_seqences = 5
 
 
@@ -75,44 +75,72 @@ def train(model, device, train_loader, optimizer, epoch):
     for batch_idx, (seq, label) in enumerate(train_loader):
         optimizer.zero_grad()
 
-        seq = seq.to(device) * 1000.0
-        label = label.to(device) * 1000.0
-#        print(seq.shape)
+        seq = seq.to(device) * 1e3
+        label = label.to(device) * 1e3
 
-#        plt.plot(seq[0, :, :].t(), linewidth=0.2)
-#        plt.show()
-#        exit()
-
-#        model.hidden_cell = (torch.randn(num_layers, 1, 100).to(device),
-#                             torch.randn(num_layers, 1, 100).to(device))
-        model.hidden_cell = (torch.zeros(num_layers, 1, 100).to(device),
-                             torch.zeros(num_layers, 1, 100).to(device))
-
-#        scores = torch.zeros(num_seqences)
+        model.hidden_cell = (torch.zeros(num_layers, train_batch_size, 100).to(device),
+                             torch.zeros(num_layers, train_batch_size, 100).to(device))
 
         scores = model(seq)
-        scores = scores.reshape(1, 5, 1)
-#        print(scores.shape)
-#        print(scores)
+        scores = scores.reshape(train_batch_size, 5, 1)
 
-#        scores = scores.reshape((train_batch_size, num_seqences, 1))
         true_scores = label
 
         p_true = compute_permu_matrix(true_scores, 1e-10)
         p_hat = compute_permu_matrix(scores, 5)
 
-        loss = -torch.sum(p_true * torch.log(p_hat + 1e-20), dim=-2).mean()
+        loss = -torch.sum(p_true * torch.log(p_hat + 1e-20), dim=1).mean()
 
         avg_loss += loss
 
         loss.backward()
         optimizer.step()
 
-#        print(loss)
-
-    avg_loss = avg_loss / train_size
+    avg_loss = avg_loss * train_batch_size / train_size
 
     print(f'epoch {epoch} avg loss: {avg_loss}')
+
+
+def test(model, device, test_loader):
+    model.eval()
+    test_loss = 0
+
+    correct = 0
+    any_correct = 0.0
+
+    with torch.no_grad():
+
+        for seq, label in test_loader:
+
+            seq, label = seq.to(device) * 1e3, label.to(device) * 1e3
+
+            model.hidden_cell = (torch.zeros(num_layers, test_batch_size, 100).to(device),
+                                 torch.zeros(num_layers, test_batch_size, 100).to(device))
+
+            scores = model(seq)
+
+#            print(scores.shape)
+            scores = scores.reshape(test_batch_size, 5, 1)
+            true_scores = label
+
+            p_true = compute_permu_matrix(true_scores, 1e-10)
+            p_hat = compute_permu_matrix(scores, 5)
+
+            correct += _prop_correct(p_true, p_hat)
+            any_correct += _prop_any_correct(p_true, p_hat)
+
+            test_loss += -torch.sum(p_true *
+                                    torch.log(p_hat + 1e-20), dim=1).mean()
+
+    test_loss *= test_batch_size / test_size
+
+    print('\nTest avg. loss: {:.4f}'.format(test_loss))
+    print('  all correct: {:.0f} / {:.0f} = {:.1f}%'.format(
+        correct, len(test_loader.dataset),
+        100. * correct / len(test_loader.dataset)))
+    print('  any correct: {:.1f}%'.format(
+        100. * any_correct * test_batch_size / len(test_loader.dataset)))
+    print()
 
 
 data_path = Path(__file__).absolute().parents[2] / 'data'
@@ -122,7 +150,7 @@ train_loader = torch.utils.data.DataLoader(
     batch_size=train_batch_size, shuffle=True)
 
 test_loader = torch.utils.data.DataLoader(
-    RelativeReturnsDataset(data_path, test_size, forecast_window, 5, True),
+    RelativeReturnsDataset(data_path, test_size, forecast_window, 5, False),
     batch_size=test_batch_size, shuffle=True)
 
 model = LstmModel(num_layers=num_layers)
@@ -130,12 +158,13 @@ model = model.to(device)
 
 optimizer = optim.Adam(model.parameters(), lr=1e-4)
 
-#x, y = next(iter(train_loader))
+# x, y = next(iter(train_loader))
 
-#pred = model(x)
+# pred = model(x)
 
 # print(x.shape)
 
 for epoch in range(epochs):
 
     train(model, device, train_loader, optimizer, epoch)
+    test(model, device, test_loader)

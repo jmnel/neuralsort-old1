@@ -13,35 +13,17 @@ class LstmModel(nn.Module):
 
         self.lstm = nn.LSTM(input_size=5,
                             hidden_size=hidden_size,
-                            num_layers=1, batch_first=True)
+                            num_layers=num_layers, batch_first=True)
 
-        self.linear = nn.Linear(in_features=100,
+        self.linear = nn.Linear(in_features=hidden_size,
                                 out_features=5)
-        self.hidden_cell = (torch.zeros(1, 1, 100),
-                            torch.zeros(1, 1, 100))
+        self.hidden_cell = (torch.zeros(num_layers, 2, hidden_size),
+                            torch.zeros(num_layers, 2, hidden_size))
 
     def forward(self, x):
 
-        #        print(x.shape)
-        #        x = x.reshape((1, 10, 5))
-
-        #        print('here')
-        #        print(x.shape)
         lstm_out, self.hidden_cell = self.lstm(x, self.hidden_cell)
-
-#        print(lstm_out.shape)
-
-#        lstm_out, self.hidden_cell = self.lstm(x.view(len(x), 1, -1),
-#                                               self.hidden_cell)
-
         y = self.linear(lstm_out)
-
-#        print(y.shape)
-
-        last = y[:, -1, :]
-
-#        print(last.shape)
-#        print(last)
-#        exit()
+#        last = y[:, -1, :]
 
         return y[:, -1, :]
