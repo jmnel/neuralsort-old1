@@ -45,7 +45,7 @@ class RelativeReturnsDataset(torch.utils.data.Dataset):
         self.data = list()
         for i in range(size):
             o = offsets[i]
-            seq = torch.FloatTensor(data[o:o + prediction_window]).t()
+            seq = torch.FloatTensor(data[o:o + prediction_window])
             labels = torch.FloatTensor(
                 data[o + prediction_window]).reshape((5, 1))
             self.data.append((seq, labels))

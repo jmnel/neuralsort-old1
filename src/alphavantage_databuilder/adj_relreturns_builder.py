@@ -69,6 +69,7 @@ class AdjRelReturnsBuilder:
 
             data[s] = list([float(x[0]) for x in close_price])
             m = len(data[s]) - 1
+#            m = len(data[s])
 
         # Done with source database.
         av_db.close()
@@ -79,8 +80,9 @@ class AdjRelReturnsBuilder:
                 r0 = data[s][i]
                 r1 = data[s][i + 1]
                 rr = np.clip((r1 - r0) / r1, -4.0, 0.5)
-#                rr = np.power(np.abs((r1 - r0) / r0), 1 / 8)
+                rr = np.power(np.abs((r1 - r0) / r0), 1 / 8)
                 rel_returns[i, j] = rr
+#                rel_returns[i, j] = data[s][i]
 
         # Open 'clean.db' sqlite3 database; create if doesn't exist'
         db_clean = SQLite3Connector.connect(data_path / 'clean.db')
