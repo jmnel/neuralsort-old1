@@ -20,10 +20,10 @@ device = torch.device('cpu')
 
 num_layers = 4
 
-train_size = 6400
-test_size = 1600
-train_batch_size = 200
-test_batch_size = 200
+train_size = 640
+test_size = 160
+train_batch_size = 20
+test_batch_size = 20
 
 epochs = 1000
 forecast_window = 10
@@ -101,17 +101,36 @@ def train(model, device, train_loader, optimizer, epoch):
         foo = torch.argsort(true_scores, dim=1, descending=True)
         foo = foo.reshape((train_batch_size, num_seqences))
 
-        p_bar = torch.zeros(p_true.shape).to(device)
+#        p_bar = torch.zeros(p_true.shape).to(device)
 
-        u, v = torch.meshgrid(foo[:, :top_k], foo[:, :top_k])
-        p_bar[:, u, v] = 1.0 / top_k
-        s, t = torch.meshgrid(foo[top_k:], foo[top_k:])
-        p_bar[:, s, t] = 1.0 / (num_seqences - top_k)
+#        print(foo.shape##)
+#        print(foo)
+#        u, v = torch.meshgrid(foo[:, :top_k], foo[:, :top_k])
 
-        loss = -torch.sum(p_bar * torch.log(p_hat + 1e-20),
+#        u = torch.zeros((train_batch_size, 2, 2)).long()
+#        v = torch.zeros((train_batch_size, 2, 2)).long()
+
+#        for kq in range(train_batch_size):
+#            u[kq], v[kq] = torch.meshgrid(foo[kq, :top_k], foo[kq, :top_k])
+#            u[1], v[1] = torch.meshgrid(foo[1, :top_k], foo[1, :top_k])
+#        print('u=')
+#        print(u)
+
+#        p_bar[:, u, v] = 1.0 / top_k
+
+#        s = torch.zeros((train_batch_size, 3, 3)).long()
+#        t = torch.zeros((train_batch_size, 3, 3)).long()
+
+#        for kq in range(train_batch_size):
+#            s[kq], t[kq] = torch.meshgrid(foo[kq, top_k:], foo[kq, top_k:])
+#        s[1], t[1] = torch.meshgrid(foo[1, top_k:], foo[1, top_k:])
+
+#        p_bar[:, s, t] = 1.0 / (num_seqences - top_k)
+
+        loss = -torch.sum(p_true * torch.log(p_hat + 1e-20),
                           dim=1).mean()
 
-        print(loss)
+#        print(loss)
 
         avg_loss += loss
 
