@@ -25,12 +25,16 @@ test_size = 1600
 train_batch_size = 200
 test_batch_size = 200
 
-epochs = 100
-forecast_window = 50
+epochs = 1000
+forecast_window = 10
 num_seqences = 5
+
+top_k = 2
 
 
 def _bl_matmul(mat_a, mat_b):
+    #    print(f'mat_a={mat_a.is_cuda}')
+    #    print(f'mat_b={mat_b.is_cuda}')
     return torch.einsum('mij,jk->mik', mat_a, mat_b)
 
 
@@ -38,16 +42,15 @@ def compute_permu_matrix(s: torch.FloatTensor, tau=1):
     mat_as = s - s.permute(0, 2, 1)
     mat_as = torch.abs(mat_as)
     n = s.shape[1]
-    one = torch.ones(n, 1)
+    one = torch.ones(n, 1).to(device)
     b = _bl_matmul(mat_as, one @ one.transpose(0, 1))
     k = torch.arange(n) + 1
-    d = (n + 1 - 2 * k).float().detach().requires_grad_(True).unsqueeze(0)
+    d = (n + 1 - 2 * k).float().detach().requires_grad_(True).unsqueeze(0).to(device)
     c = _bl_matmul(s, d)
     mat_p = (c - b).permute(0, 2, 1)
     mat_p = F.softmax(mat_p / tau, -1)
 
     return mat_p
-#
 
 
 def _prop_any_correct(p1, p2):
@@ -75,21 +78,40 @@ def train(model, device, train_loader, optimizer, epoch):
     for batch_idx, (seq, label) in enumerate(train_loader):
         optimizer.zero_grad()
 
-        seq = seq.to(device) * 1e3
-        label = label.to(device) * 1e3
+        seq = seq.to(device) * 1
+        label = label.to(device) * 1
 
         model.hidden_cell = (torch.zeros(num_layers, train_batch_size, 100).to(device),
                              torch.zeros(num_layers, train_batch_size, 100).to(device))
 
+#        print(seq.is_cuda)
+#        print(label.is_cuda)
+
         scores = model(seq)
-        scores = scores.reshape(train_batch_size, 5, 1)
+        scores = scores.reshape(train_batch_size, num_seqences, 1)
 
         true_scores = label
 
         p_true = compute_permu_matrix(true_scores, 1e-10)
         p_hat = compute_permu_matrix(scores, 5)
 
-        loss = -torch.sum(p_true * torch.log(p_hat + 1e-20), dim=1).mean()
+#        loss = -torch.sum(p_true * torch.log(p_hat + 1e-20),
+#                          dim=1).mean()
+
+        foo = torch.argsort(true_scores, dim=1, descending=True)
+        foo = foo.reshape((train_batch_size, num_seqences))
+
+        p_bar = torch.zeros(p_true.shape).to(device)
+
+        u, v = torch.meshgrid(foo[:, :top_k], foo[:, :top_k])
+        p_bar[:, u, v] = 1.0 / top_k
+        s, t = torch.meshgrid(foo[top_k:], foo[top_k:])
+        p_bar[:, s, t] = 1.0 / (num_seqences - top_k)
+
+        loss = -torch.sum(p_bar * torch.log(p_hat + 1e-20),
+                          dim=1).mean()
+
+        print(loss)
 
         avg_loss += loss
 
@@ -112,15 +134,14 @@ def test(model, device, test_loader):
 
         for seq, label in test_loader:
 
-            seq, label = seq.to(device) * 1e3, label.to(device) * 1e3
+            seq, label = seq.to(device) * 1, label.to(device) * 1
 
             model.hidden_cell = (torch.zeros(num_layers, test_batch_size, 100).to(device),
                                  torch.zeros(num_layers, test_batch_size, 100).to(device))
 
             scores = model(seq)
 
-#            print(scores.shape)
-            scores = scores.reshape(test_batch_size, 5, 1)
+            scores = scores.reshape(test_batch_size, num_seqences, 1)
             true_scores = label
 
             p_true = compute_permu_matrix(true_scores, 1e-10)
@@ -146,23 +167,20 @@ def test(model, device, test_loader):
 data_path = Path(__file__).absolute().parents[2] / 'data'
 
 train_loader = torch.utils.data.DataLoader(
-    RelativeReturnsDataset(data_path, train_size, forecast_window, 5, True),
+    RelativeReturnsDataset(data_path, train_size,
+                           forecast_window, num_seqences, True),
     batch_size=train_batch_size, shuffle=True)
 
 test_loader = torch.utils.data.DataLoader(
-    RelativeReturnsDataset(data_path, test_size, forecast_window, 5, False),
+    RelativeReturnsDataset(data_path, test_size,
+                           forecast_window, num_seqences, False),
     batch_size=test_batch_size, shuffle=True)
 
-model = LstmModel(num_layers=num_layers)
+model = LstmModel(num_layers=num_layers, num_seqences=num_seqences)
 model = model.to(device)
 
 optimizer = optim.Adam(model.parameters(), lr=1e-4)
 
-# x, y = next(iter(train_loader))
-
-# pred = model(x)
-
-# print(x.shape)
 
 for epoch in range(epochs):
 
